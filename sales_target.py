@@ -1,6 +1,7 @@
 import pandas as pd
 import sys
 import os
+from calendar import monthrange
 
 target_file = os.path.join("./",sys.argv[1])
 stores_file = os.path.join("./",sys.argv[2])
@@ -33,11 +34,11 @@ def start_date(target):
         dates.append(target['date'][i])
     return dict(zip(target_cities,dates))
     
-
-def get_days(proportions,target_amount):
-    prop_sum = sum(proportions)
-    days = round(target_amount/prop_sum)
-    return (days)
+def days(date):
+    splits = date.split('-')
+    year,month = int(splits[0]),int(splits[1])
+    week_day,days = monthrange(year,month)
+    return days
 
 def fillsales(start_date,period,dictofprops):
     start_date = str(start_date)
@@ -47,10 +48,13 @@ def fillsales(start_date,period,dictofprops):
         store = [storename for i in range(period)]
         sales = [dictofprops[storename] for j in range(period)]
         dates = pd.date_range(start=start_date,periods=period,freq='D')
-        sales_df = pd.DataFrame(data=dates,columns=["Date"])
-        sales_df = sales_df.assign(Store_Name=store,Sale_Value=sales)
+        dates_df = pd.DataFrame(data=dates,columns=["Date"])
+        dates = dates_df["Date"].tolist()
+        sales_df = pd.DataFrame()
+        sales_df = sales_df.assign(store=store,date=dates,amount=sales)
         dataframe = dataframe.append(sales_df,ignore_index=True)
     return dataframe
+
 
 def get_city_wise_group(sales):
     """
@@ -69,19 +73,18 @@ def get_city_wise_group(sales):
         total_sale_per_day = sum(unique_sales)
         ratios,proportions = [],[]
         store_names = []
+        ndays = days(target_dates[name])
         for i in range(len(unique_sales)):
             ratio = unique_sales[i]/total_sale_per_day
             ratios.append(ratio)
-            proportions.append(unique_sales[i]*ratio)
+            proportions.append((target_dict[name]/ndays)*ratio)
             indices = dataframe[dataframe["amount"]==unique_sales[i]].index.values.astype(int)
             index = indices[0]
             store_names.append(dataframe["store"][index])
         proportion_dict = dict(zip(store_names,proportions))
         #days needed to complete target
-        days_to_complete = get_days(proportions,target_dict[name])
-        city_wise_sales = fillsales(target_dates[name],days_to_complete,proportion_dict)
+        city_wise_sales = fillsales(target_dates[name],ndays,proportion_dict)
         target_sales = target_sales.append(city_wise_sales,ignore_index=True)
-    print(sys.argv[4],"Generated at ",output_file)
     return target_sales
 
 sales = add_city_column(sales,stores) 
